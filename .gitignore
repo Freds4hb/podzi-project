@@ -1,0 +1,19 @@
+.claude/skills/gstack/node_modules/
+
+# Derived skill dirs (created by ./setup from gstack submodule — not committed)
+.claude/skills/browse/
+.claude/skills/debug/
+.claude/skills/design-consultation/
+.claude/skills/design-review/
+.claude/skills/document-release/
+.claude/skills/gstack-upgrade/
+.claude/skills/office-hours/
+.claude/skills/plan-ceo-review/
+.claude/skills/plan-design-review/
+.claude/skills/plan-eng-review/
+.claude/skills/qa/
+.claude/skills/qa-only/
+.claude/skills/retro/
+.claude/skills/review/
+.claude/skills/setup-browser-cookies/
+.claude/skills/ship/
