@@ -1,3 +1,21 @@
+# --- Node / Next.js platform app ---
+node_modules/
+.next/
+out/
+build/
+next-env.d.ts
+*.tsbuildinfo
+
+# Env files (never commit secrets)
+.env
+.env.local
+.env.*.local
+
+# Drizzle
+# (generated migrations in /drizzle ARE committed; local studio artifacts are not)
+.drizzle/
+
+# --- gstack skills ---
 .claude/skills/gstack/node_modules/
 
 # Derived skill dirs (created by ./setup from gstack submodule — not committed)
