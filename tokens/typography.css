@@ -1,0 +1,44 @@
+/* ==========================================================================
+   Podzi.ai — Typography tokens
+   Display/Brand: Sora (geometric, modern)
+   Body/UI:       Hanken Grotesk (warm, highly legible grotesk)
+   Mono:          Space Mono (timestamps, code, labels)
+   ========================================================================== */
+:root {
+  --font-display: "Sora", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-body:    "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono:    "Space Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  /* weights */
+  --fw-regular: 400;
+  --fw-medium:  500;
+  --fw-semibold:600;
+  --fw-bold:    700;
+  --fw-extra:   800;
+
+  /* type scale (1.250 major-third-ish, tuned) */
+  --text-xs:   12px;
+  --text-sm:   14px;
+  --text-base: 16px;
+  --text-md:   18px;
+  --text-lg:   20px;
+  --text-xl:   24px;
+  --text-2xl:  30px;
+  --text-3xl:  38px;
+  --text-4xl:  48px;
+  --text-5xl:  62px;
+  --text-6xl:  80px;
+
+  /* line-heights */
+  --leading-tight:   1.05;
+  --leading-snug:    1.2;
+  --leading-normal:  1.5;
+  --leading-relaxed: 1.65;
+
+  /* letter-spacing */
+  --tracking-tight:  -0.03em;  /* display headlines */
+  --tracking-snug:   -0.015em;
+  --tracking-normal: 0;
+  --tracking-wide:   0.04em;    /* eyebrows / labels */
+  --tracking-caps:   0.12em;    /* all-caps micro labels */
+}
