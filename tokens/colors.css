@@ -1,0 +1,75 @@
+/* ==========================================================================
+   Podzi.ai — Color tokens
+   Bold Podzi red + cool ink neutrals. Red→flare gradient is the signature.
+   ========================================================================== */
+:root {
+  /* —— Brand red scale —————————————————————————————————— */
+  --red-50:  #FEF0EF;
+  --red-100: #FCDAD7;
+  --red-200: #F8AEA8;
+  --red-300: #F3837A;
+  --red-400: #F1463B;
+  --red-500: #E5322B;   /* PRIMARY — Podzi Red */
+  --red-600: #C8241D;   /* deep — hover / gradient end */
+  --red-700: #A11812;
+  --red-800: #7C120E;
+
+  /* —— Flare (warm accent, signature gradient partner) ——— */
+  --flare-400: #FF8A4C;
+  --flare-500: #FF6A3D;
+  --flare-600: #F2521F;
+
+  /* —— Ink + cool slate neutrals ———————————————————————— */
+  --ink-900: #16181D;   /* near-black, dark surfaces, strongest text */
+  --ink-800: #1B1F27;
+  --ink-700: #2A2F3A;   /* body text */
+  --ink-600: #3D4452;
+  --slate-500: #5B6373; /* muted text */
+  --slate-400: #7C8494;
+  --slate-300: #A6ADBA;
+  --slate-200: #CDD2DB; /* borders */
+  --slate-150: #DCE0E7;
+  --slate-100: #E6E9EE;
+  --slate-50:  #F2F4F7;
+  --paper:     #FAF9F7; /* warm off-white page background */
+  --white:     #FFFFFF;
+
+  /* —— Semantic status ——————————————————————————————————— */
+  --success-500: #1F9D63;
+  --success-50:  #E6F5EC;
+  --warning-500: #F4A52B;
+  --warning-50:  #FDF1DE;
+  --info-500:    #2A74D6;
+  --info-50:     #E7F0FB;
+  --danger-500:  #C8241D;
+  --danger-50:   #FCE9E7;
+
+  /* —— Signature gradients ——————————————————————————————— */
+  --grad-flare: linear-gradient(135deg, #FF6A3D 0%, #E5322B 55%, #C8241D 100%);
+  --grad-red:   linear-gradient(135deg, #F1463B 0%, #C8241D 100%);
+  --grad-ink:   linear-gradient(160deg, #2A2F3A 0%, #16181D 100%);
+
+  /* —— Semantic aliases (use these in product CSS) ——————— */
+  --color-brand:        var(--red-500);
+  --color-brand-deep:   var(--red-600);
+  --color-brand-soft:   var(--red-50);
+  --color-accent:       var(--flare-500);
+
+  --text-strong:        var(--ink-900);
+  --text-body:          var(--ink-700);
+  --text-muted:         var(--slate-500);
+  --text-faint:         var(--slate-400);
+  --text-on-brand:      var(--white);
+  --text-brand:         var(--red-500);
+
+  --surface-page:       var(--paper);
+  --surface-card:       var(--white);
+  --surface-sunken:     var(--slate-50);
+  --surface-inverse:    var(--ink-900);
+
+  --border-subtle:      var(--slate-100);
+  --border-default:     var(--slate-200);
+  --border-strong:      var(--slate-300);
+
+  --focus-ring:         var(--red-400);
+}
