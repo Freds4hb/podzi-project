@@ -14,7 +14,7 @@ method choice:
 |-------------|-------|--------------------------|
 | Transcription (summaries, smart-trim, sponsor-skip) | ~$160k/mo if done per-stitch | ~$3–13k/mo by transcribing each episode **once** and caching |
 | Mobile CDN egress (~27 TB/mo audio) | ~$2.3k/mo (S3/CloudFront) | ~$0 (Cloudflare R2 + CDN) |
-| Concat compute (ffmpeg **stream-copy**) | — | ~$0.5–1.5k/mo |
+| Concat compute (ffmpeg normalize → **stream-copy** concat) | — | ~$0.5–1.5k/mo |
 | Storage / LLM summaries / Neon / Clerk@100k | — | ~$5–8k/mo combined |
 
 *(Order-of-magnitude figures to compare structure, not a budget. Assumes ~35k
@@ -34,7 +34,11 @@ Overlaying the three methods on that identical base:
    is transcribed the first time any stitch touches it and reused forever after
    (`episodes.transcript_status` / `transcript_url`).
 2. **Zero-egress delivery** — serve stitched audio from Cloudflare R2 + CDN.
-3. **ffmpeg stream-copy** — concatenate without re-encoding → CPU is trivial.
+3. **ffmpeg normalize → stream-copy concat** — each (optionally trimmed)
+   segment gets one lightweight re-encode to a uniform MP3, then the parts are
+   joined with a `-c copy` stream-copy concat (the join itself is trivial CPU).
+   A future fast-path can skip normalization when all sources already share a
+   codec/bitrate.
 4. **Cheap/self-hosted transcription + small summarization model.**
 
 ### Re-scoping the other two (not discarded)
@@ -62,12 +66,38 @@ is enforced **structurally**, not by convention:
 First-time transcription and full-episode concatenation routinely exceed
 serverless request time limits. Therefore:
 
-- The web request only **enqueues** a job (`stitches` row, status `queued`).
-- A separate worker/queue consumer runs `runStitchJob` (transcribe-if-needed →
-  trim → ffmpeg concat → upload to R2 → summarize → mark `ready`).
+- The web request only **enqueues** a job (`stitches` row, status `queued`) —
+  `POST /api/stitches`.
+- A separate worker/queue consumer runs `processStitch` (transcribe-if-needed →
+  trim → ffmpeg concat → upload → summarize → mark `ready`). Locally:
+  `npm run worker:process -- <stitchId>`.
 
 This keeps API latency low and cost bounded, and makes each job auditable and
 re-runnable from its stored segment plan.
+
+## Pipeline implementation (wired)
+
+The engine lives in `src/lib/concat/` and is dependency-injected so each layer is
+swappable and testable:
+
+- `audio/ffmpeg.ts` — normalize + stream-copy concat + duration probe (pure).
+- `storage/` — `StorageClient` with `LocalStorage` (dev) and `S3Storage`
+  (Cloudflare R2 / S3, production); `getStorage()` picks by env.
+- `transcription/` + `summarization/` — pluggable, OpenAI-compatible providers
+  with Null implementations so the pipeline runs **audio-only** when no keys are
+  set. Transcripts are cached per episode via `StorageClient.get/put`.
+- `repository.ts` — profile-gated candidate query + stitch/transcript persistence.
+- `pipeline.ts` — pure `planStitch` + injected `runStitchJob`.
+- `worker.ts` — `processStitch` orchestrates the above.
+
+**Verification:** `npm run verify:concat` exercises the real path end-to-end
+(ffmpeg → concat → storage) with generated tones — no DB or cloud creds needed.
+
+### Not yet wired
+- Smart-stitch trimming / sponsor-skip (transcript-driven segment ranges — the
+  data model and trim support already exist; the segment-selection logic is next).
+- A production queue/consumer (currently a CLI runner + enqueue API).
+- Stripe→entitlement persistence and Clerk-derived auth on `/api/stitches`.
 
 ## Cross-platform
 

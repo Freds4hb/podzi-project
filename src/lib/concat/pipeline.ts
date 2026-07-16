@@ -1,17 +1,24 @@
 /**
  * Concatenation pipeline — types, the profile-gated segment planner, and the
- * background-worker contract.
+ * real stitch executor.
  *
  * WHY A BACKGROUND WORKER (not an inline request handler):
  * Stitching and (first-time) transcription of full episodes routinely exceed
  * serverless request time limits. The web request only ENQUEUES a stitch job
- * (writing a `stitches` row with status "queued"); a separate worker/queue
- * consumer runs `runStitchJob`. This keeps the API fast and the costs bounded.
+ * (writing a `stitches` row with status "queued"); a separate worker
+ * (src/lib/concat/worker.ts) resolves it and calls `runStitchJob`. This keeps
+ * the API fast and the costs bounded.
  *
- * This file is the wiring contract for that pipeline. The actual ffmpeg and
- * transcription calls are marked with `TODO(wire)` and guarded so the scaffold
- * builds and typechecks without ffmpeg, storage, or provider keys present.
+ * `runStitchJob` is dependency-injected (storage, summarizer, transcripts) so it
+ * can be exercised end-to-end without a database or cloud credentials — see
+ * scripts/verify-concat.mts.
  */
+import path from "node:path";
+import os from "node:os";
+import { readFile, rm } from "node:fs/promises";
+import { buildConcatenatedAudio } from "./audio/ffmpeg";
+import type { StorageClient } from "./storage/types";
+import type { Summarizer } from "./summarization/types";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                       */
@@ -24,29 +31,24 @@ export interface CandidateEpisode {
   title: string;
   audioUrl: string;
   durationSeconds: number | null;
-  /** Whether a cached transcript already exists (drives cost/latency). */
   hasCachedTranscript: boolean;
   publishedAt: Date | null;
 }
 
-/** One ordered segment of the final stitched stream. */
+/** One ordered segment of the final stitched stream (planning output). */
 export interface StitchSegment {
   episodeId: string;
   startSec: number;
   endSec: number;
 }
 
-/** Result of planning: the ordered segments plus a rough duration estimate. */
 export interface StitchPlan {
   segments: StitchSegment[];
   estimatedDurationSec: number;
 }
 
-/** Inputs that shape a stitch (kept small; expand as features land). */
 export interface StitchOptions {
-  /** Target total length; the planner packs segments up to this budget. */
   targetDurationSec?: number;
-  /** Newest-first (default) or oldest-first ordering of source episodes. */
   order?: "newest" | "oldest";
 }
 
@@ -60,15 +62,12 @@ const DEFAULT_TARGET_SEC = 45 * 60; // 45 minutes
  * Build an ordered segment plan from the user's followed-show episodes.
  *
  * IMPORTANT: `candidates` MUST already be restricted to episodes from shows the
- * user follows. This function does not fetch anything — it is pure so it can be
- * unit-tested and audited. The profile gate lives at the data layer (a query
- * that joins `followed_shows`), and this signature makes the contract explicit.
+ * user follows (the data layer enforces this — see repository.ts). This function
+ * is pure so it can be unit-tested and audited.
  *
- * Current heuristic (v0): whole-episode concatenation in the requested order,
- * packing episodes until the target duration budget is reached. Smart-stitch
- * trimming and sponsor-skip will later replace whole-episode segments with
- * transcript-derived [startSec, endSec] ranges — the return shape already
- * supports that without a schema change.
+ * v0 heuristic: whole-episode concatenation in the requested order, packing
+ * until the target duration budget is reached. The [startSec, endSec] shape
+ * already supports transcript-derived trimming/sponsor-skip without a change.
  */
 export function planStitch(
   candidates: CandidateEpisode[],
@@ -88,7 +87,7 @@ export function planStitch(
   for (const ep of sorted) {
     if (total >= target) break;
     const dur = ep.durationSeconds ?? 0;
-    if (dur <= 0) continue; // skip episodes with unknown/zero duration
+    if (dur <= 0) continue;
     segments.push({ episodeId: ep.episodeId, startSec: 0, endSec: dur });
     total += dur;
   }
@@ -97,38 +96,98 @@ export function planStitch(
 }
 
 /* -------------------------------------------------------------------------- */
-/* Execution (background worker contract)                                      */
+/* Execution                                                                   */
 /* -------------------------------------------------------------------------- */
+
+/** A plan segment resolved to a concrete source audio URL. */
+export interface ResolvedSegment {
+  episodeId: string;
+  audioUrl: string;
+  startSec: number;
+  endSec: number;
+}
 
 export interface RunStitchResult {
   status: "ready" | "failed";
   outputAudioUrl?: string;
+  durationSec?: number;
   summary?: string;
   error?: string;
 }
 
+/** Injected collaborators for a stitch run. */
+export interface ConcatDeps {
+  storage: StorageClient;
+  summarizer: Summarizer;
+  /** Cached transcript text per episodeId; enables summary generation. */
+  transcripts?: Record<string, string>;
+  /** Scratch root for intermediates (default: OS temp dir). */
+  workRoot?: string;
+  /** Storage key prefix for the output object (default "stitches"). */
+  keyPrefix?: string;
+}
+
 /**
- * Execute a planned stitch. Intended to run in a background worker, NOT in a
- * request handler. Steps (each a TODO to wire against real infra):
- *
- *   1. Ensure a cached transcript for every source episode (transcribe once).
- *   2. (Later) apply smart-stitch trimming / sponsor-skip using transcripts.
- *   3. Download source audio segments and concatenate with ffmpeg stream-copy.
- *   4. Upload the stitched file to zero-egress object storage; get a CDN URL.
- *   5. Generate a recap/summary from the concatenated transcript.
- *   6. Update the `stitches` row (status "ready" + outputAudioUrl + summary).
- *
- * Guarded so the scaffold builds without ffmpeg/storage/provider keys: until the
- * pipeline is wired, it returns a clear "not implemented" failure rather than
- * pretending to succeed.
+ * Execute a resolved stitch: concatenate the source segments into one MP3,
+ * upload it, and (when transcripts + a summarizer are available) produce a
+ * recap. Never throws — always resolves to a RunStitchResult so callers/workers
+ * can persist the outcome.
  */
-export async function runStitchJob(plan: StitchPlan): Promise<RunStitchResult> {
-  // TODO(wire): steps 1–6 above. Deliberately not implemented in the scaffold.
-  void plan;
-  return {
-    status: "failed",
-    error:
-      "Concatenation pipeline is scaffolded but not yet wired to ffmpeg, " +
-      "object storage, or transcription/summarization providers.",
-  };
+export async function runStitchJob(
+  input: { stitchId: string; segments: ResolvedSegment[] },
+  deps: ConcatDeps,
+): Promise<RunStitchResult> {
+  const { stitchId, segments } = input;
+  if (segments.length === 0) {
+    return { status: "failed", error: "Stitch has no segments." };
+  }
+
+  const workDir = path.join(
+    deps.workRoot ?? os.tmpdir(),
+    `podzi-stitch-${stitchId}`,
+  );
+
+  try {
+    // 1. Concatenate audio (ffmpeg: normalize → stream-copy concat).
+    const concat = await buildConcatenatedAudio(
+      segments.map((s) => ({
+        source: s.audioUrl,
+        startSec: s.startSec,
+        endSec: s.endSec,
+      })),
+      workDir,
+    );
+
+    // 2. Upload the stitched file to object storage → public/CDN URL.
+    const bytes = await readFile(concat.outputPath);
+    const key = `${deps.keyPrefix ?? "stitches"}/${stitchId}.mp3`;
+    const stored = await deps.storage.put(key, bytes, "audio/mpeg");
+
+    // 3. Optional recap: only when we have transcripts AND a real summarizer.
+    let summary: string | undefined;
+    if (deps.transcripts && deps.summarizer.isEnabled()) {
+      const combined = segments
+        .map((s) => deps.transcripts?.[s.episodeId] ?? "")
+        .filter(Boolean)
+        .join("\n\n");
+      if (combined) {
+        summary = await deps.summarizer.summarize(combined);
+      }
+    }
+
+    return {
+      status: "ready",
+      outputAudioUrl: stored.url,
+      durationSec: concat.durationSec,
+      summary,
+    };
+  } catch (err) {
+    return {
+      status: "failed",
+      error: err instanceof Error ? err.message : String(err),
+    };
+  } finally {
+    // Best-effort scratch cleanup; ignore errors.
+    await rm(workDir, { recursive: true, force: true }).catch(() => {});
+  }
 }

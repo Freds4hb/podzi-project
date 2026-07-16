@@ -39,14 +39,22 @@ export const env = {
   VERCEL_PROJECT_ID: process.env.VERCEL_PROJECT_ID ?? "",
   VERCEL_TEAM_ID: process.env.VERCEL_TEAM_ID ?? "",
 
-  // Concatenation pipeline
+  // Concatenation pipeline — transcription + summarization providers
   TRANSCRIPTION_API_KEY: process.env.TRANSCRIPTION_API_KEY ?? "",
+  TRANSCRIPTION_BASE_URL: process.env.TRANSCRIPTION_BASE_URL ?? "",
+  TRANSCRIPTION_MODEL: process.env.TRANSCRIPTION_MODEL ?? "",
   SUMMARIZATION_API_KEY: process.env.SUMMARIZATION_API_KEY ?? "",
+  SUMMARIZATION_BASE_URL: process.env.SUMMARIZATION_BASE_URL ?? "",
+  SUMMARIZATION_MODEL: process.env.SUMMARIZATION_MODEL ?? "",
+
+  // Concatenation pipeline — object storage (Cloudflare R2 / S3-compatible)
   AUDIO_STORAGE_ENDPOINT: process.env.AUDIO_STORAGE_ENDPOINT ?? "",
   AUDIO_STORAGE_BUCKET: process.env.AUDIO_STORAGE_BUCKET ?? "",
   AUDIO_STORAGE_ACCESS_KEY_ID: process.env.AUDIO_STORAGE_ACCESS_KEY_ID ?? "",
   AUDIO_STORAGE_SECRET_ACCESS_KEY:
     process.env.AUDIO_STORAGE_SECRET_ACCESS_KEY ?? "",
+  AUDIO_STORAGE_REGION: process.env.AUDIO_STORAGE_REGION ?? "",
+  AUDIO_STORAGE_PUBLIC_URL: process.env.AUDIO_STORAGE_PUBLIC_URL ?? "",
 
   // App
   NEXT_PUBLIC_APP_URL:

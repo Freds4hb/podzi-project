@@ -15,6 +15,9 @@ next-env.d.ts
 # (generated migrations in /drizzle ARE committed; local studio artifacts are not)
 .drizzle/
 
+# Local object storage (dev StorageClient output)
+.storage/
+
 # --- gstack skills ---
 .claude/skills/gstack/node_modules/
 

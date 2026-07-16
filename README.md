@@ -55,7 +55,17 @@ src/
     env.ts                       Central env access + isConfigured/requireEnv
     integrations/                One adapter per service + registry
     concat/                      Direct-code concatenation engine (profile-gated)
+      pipeline.ts                Pure planStitch + injected runStitchJob
+      audio/ffmpeg.ts            Normalize + stream-copy concat + probe
+      storage/                   StorageClient: LocalStorage (dev) + S3/R2
+      transcription/             Pluggable transcriber (Null + Whisper)
+      summarization/             Pluggable summarizer (Null + LLM)
+      repository.ts              Profile-gated queries + transcript cache
+      worker.ts                  processStitch orchestration
   middleware.ts                  Clerk auth gate (no-op until keys are set)
+scripts/
+  verify-concat.mts              End-to-end pipeline check (no DB/cloud needed)
+  process-stitch.mts             Local worker runner for one stitch
 ```
 
 ## Documentation
