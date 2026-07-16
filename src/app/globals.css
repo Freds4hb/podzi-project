@@ -1,0 +1,46 @@
+/**
+ * Minimal global styles for the platform scaffold.
+ *
+ * The full Podzi.ai design-system tokens (the `tokens/*.css` + `styles.css` in
+ * the marketing UI kit) will be merged in as the product UI is built. For now
+ * this covers just enough for the landing page and the admin dashboard, echoing
+ * the brand red so the scaffold looks on-brand.
+ */
+:root {
+  --brand: #e5322b;
+  --brand-deep: #c8241d;
+  --ink: #16181d;
+  --muted: #5b6373;
+  --paper: #faf9f7;
+  --card: #ffffff;
+  --border: #e6e9ee;
+  --ok: #1f9d63;
+  --warn: #f4a52b;
+  --err: #c8241d;
+  --radius: 14px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--ink);
+  background: var(--paper);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--brand);
+  text-decoration: none;
+}
+a:hover {
+  color: var(--brand-deep);
+}
