@@ -20,23 +20,26 @@ records a verified status audit across every system the project touches.
 
 ## Status at a glance
 
-Audited **2026-08-17**. Every row was checked against the live system, not
-assumed. Detail and method in [Verification log](#verification-log).
+Audited **2026-08-17**, re-verified **2026-09-14** — every row unchanged in the
+four weeks between. Each was checked against the live system, not assumed.
+Detail and method in [Verification log](#verification-log).
 
 | Area | Claim | Verified state |
 |------|-------|----------------|
 | Application code | Complete | ✅ **Real and working** — 48 files, typechecks clean, production build succeeds |
 | Concat engine | Working | ✅ **Verified end-to-end** — produced a correct stitched MP3 from real audio |
 | Design system | Complete | ⚠️ **Partial in git** — tokens + logo + **1 of 13** website pages |
-| GitHub | Up to date across the board | ❌ **No** — `master` has no app code; all work sat in 2 unmerged draft PRs |
+| GitHub | Up to date across the board | ❌ **No** — `master` still has no app code; all work sits in unmerged draft PRs |
 | Vercel ↔ Clerk ↔ Neon | Connected | ❌ **Not for this repo** — accounts exist, nothing wired to `podzi-project` |
 | Devin.ai | Has performance reports | ⚠️ **Yes, but elsewhere** — reports are on two *other* DS4-Design repos |
 | Drive / Cowork data | On the desktop drive | ✅ **Substantial material exists** in Google Drive (design deck, app flow, SOPs) |
+| Podcast identification | New code exists | ❌ **Not in this repo** — no feed ingestion, search, or discovery code at all |
+| Mobile / desktop clients | Wired to the engine | ❌ **Do not exist** — no native, React Native, Flutter, Electron or Tauri code |
 
 **Bottom line:** the engineering is in better shape than the delivery pipeline.
-The code is real, builds, and its core algorithm is provably correct — but until
-this branch, none of it was on `master`, and no hosting, auth, or database
-service is actually connected to this repository.
+The code is real, builds, and its core algorithm is provably correct — but none
+of it is on `master`, no hosting, auth, or database service is connected to this
+repository, and the only client that exists is the Next.js web app.
 
 ---
 
@@ -274,6 +277,27 @@ positioning).
 not reachable from this environment, so any Cowork data held only on a local
 machine is outside what could be checked here.
 
+### ❌ Podcast identification — no such code in this repo
+
+The data model anticipates it: `shows` carries `feedUrl` and an `externalId`
+documented as "RSS feed URL hash or podcast index id." **The code to populate it
+does not exist.** There is no feed fetcher, no RSS/Atom parser, no podcast-index
+or directory API client, no search or discovery endpoint, and no ingestion job.
+The concat engine consumes `shows`/`episodes` rows; nothing yet creates them.
+
+### ❌ Mobile and desktop clients — none exist
+
+The repository contains exactly one client: the Next.js web app under `src/app/`.
+A search of the full tree finds **no** `app.json`/`app.config`, Expo or React
+Native dependency, `metro.config`, `pubspec.yaml`, `android/` or `ios/`
+directory, `.xcodeproj`, Swift or Kotlin source, and no Electron, Tauri or
+Capacitor config.
+
+`docs/ARCHITECTURE.md` describes Clerk as providing shared identity for "the
+upcoming native mobile apps" and the API routes as "the shared backend for web
+and mobile" — that is the *intended* design, not a shipped integration. The
+Drive design deck specifies 13 app screens; none are implemented in any form.
+
 ---
 
 ## Known gaps
@@ -282,16 +306,21 @@ Ordered by what blocks a deployable v1:
 
 1. **Nothing is deployed.** No Vercel project, no Neon database, no Clerk keys.
    The adapters are ready; the services are not connected.
-2. **No CI.** Zero checks on either PR. `typecheck` + `build` + `verify:concat`
+2. **No CI.** Zero checks on any PR. `typecheck` + `build` + `verify:concat`
    are the obvious first workflow.
-3. **12 of 13 website pages and all 13 app screens** are design-only.
-4. **The landing page is a placeholder** — `src/app/page.tsx` does not yet use
+3. **No podcast identification.** Nothing populates `shows` or `episodes` — the
+   catalogue the concat engine reads from has no ingestion path.
+4. **No mobile or desktop client.** The web app is the only client; all 13 app
+   screens are design-only. Platform choice (React Native / Expo, Flutter, or a
+   PWA) is an open decision, not a wiring task.
+5. **12 of 13 website pages** are design-only.
+6. **The landing page is a placeholder** — `src/app/page.tsx` does not yet use
    the design system in `tokens/` and `ui_kits/`.
-5. **Pipeline features not wired:** smart-stitch trimming / sponsor-skip
+7. **Pipeline features not wired:** smart-stitch trimming / sponsor-skip
    (data model exists, segment-selection logic does not), a production queue
    consumer (currently a CLI runner), Stripe→entitlement persistence, and
    Clerk-derived auth on `/api/stitches`.
-6. **ffmpeg is an undeclared runtime dependency** — document it in deploy setup
+8. **ffmpeg is an undeclared runtime dependency** — document it in deploy setup
    or vendor `ffmpeg-static`.
 
 ## Documentation
