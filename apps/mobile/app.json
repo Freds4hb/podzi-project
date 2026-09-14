@@ -1,0 +1,17 @@
+{
+  "expo": {
+    "name": "Podzi",
+    "slug": "podzi",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "podzi",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": { "supportsTablet": true, "bundleIdentifier": "ai.podzi.app" },
+    "android": { "package": "ai.podzi.app" },
+    "plugins": ["expo-router"],
+    "extra": {
+      "apiBaseUrl": "http://localhost:3000"
+    }
+  }
+}

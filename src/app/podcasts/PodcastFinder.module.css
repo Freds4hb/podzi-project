@@ -1,0 +1,146 @@
+/*
+ * Styles for the podcast finder.
+ *
+ * Colours come from the design-system tokens in `tokens/colors.css`, referenced
+ * as CSS custom properties with a literal fallback. The fallback matters: the
+ * token sheet is part of the marketing UI kit and is not yet imported into the
+ * app shell, so without it this panel would render unstyled. When the kit is
+ * wired into `globals.css`, these fall through to the real tokens automatically.
+ */
+
+.finder {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tab {
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--slate-200, #cdd2db);
+  background: var(--white, #ffffff);
+  color: var(--ink-700, #2a2f3a);
+  font: inherit;
+  cursor: pointer;
+}
+
+.tabOn {
+  background: var(--red-500, #e5322b);
+  border-color: var(--red-500, #e5322b);
+  color: var(--white, #ffffff);
+}
+
+.tab:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* flex-basis keeps the field usable at phone width without overflowing. */
+.input {
+  flex: 1 1 260px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--slate-200, #cdd2db);
+  border-radius: 10px;
+  font: inherit;
+  color: var(--ink-700, #2a2f3a);
+}
+
+.btn {
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 0;
+  background: var(--red-500, #e5322b);
+  color: var(--white, #ffffff);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btnQuiet {
+  background: var(--slate-50, #f2f4f7);
+  color: var(--ink-700, #2a2f3a);
+}
+
+.list,
+.episodes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.episodes {
+  gap: 6px;
+}
+
+.card {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border: 1px solid var(--slate-150, #dce0e7);
+  border-radius: 12px;
+  background: var(--white, #ffffff);
+}
+
+.preview {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.cardBody {
+  min-width: 0;
+}
+
+.episodes li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--slate-100, #e6e9ee);
+}
+
+/* Long episode titles truncate rather than wrapping the duration off the row. */
+.epTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.muted {
+  color: var(--slate-500, #5b6373);
+}
+
+.small {
+  font-size: 0.85em;
+}
+
+.note {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--slate-50, #f2f4f7);
+  color: var(--ink-700, #2a2f3a);
+}

@@ -12,16 +12,19 @@ billing, and an integration admin dashboard around it.
 - **Concat engine:** direct-code pipeline (chosen on cost — see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md))
 - **Design system:** brand tokens, logo lockups, and website UI kit in [`tokens/`](tokens/), [`assets/`](assets/), [`ui_kits/`](ui_kits/)
 
-This branch is the **collected main** — it merges the two previously separate
-work streams (platform scaffold + design system/pricing page) into one tree, and
-records a verified status audit across every system the project touches.
+This branch is the **collected main**: the two previously separate work streams
+(platform scaffold + design system/pricing page) plus the podcast-identification
+layer and both clients, rebased into one linear history. It also records a
+verified status audit across every system the project touches.
 
 ---
 
 ## Status at a glance
 
-Audited **2026-08-17**, re-verified **2026-09-14** — every row unchanged in the
-four weeks between. Each was checked against the live system, not assumed.
+Audited **2026-08-17**, re-verified **2026-09-14**. The two ❌ rows that were
+"not built" are now built and tested — see
+[`docs/IDENTIFICATION.md`](docs/IDENTIFICATION.md). Everything requiring *your*
+credentials is still unconnected, because it needs keys this session cannot hold.
 Detail and method in [Verification log](#verification-log).
 
 | Area | Claim | Verified state |
@@ -33,13 +36,14 @@ Detail and method in [Verification log](#verification-log).
 | Vercel ↔ Clerk ↔ Neon | Connected | ❌ **Not for this repo** — accounts exist, nothing wired to `podzi-project` |
 | Devin.ai | Has performance reports | ⚠️ **Yes, but elsewhere** — reports are on two *other* DS4-Design repos |
 | Drive / Cowork data | On the desktop drive | ✅ **Substantial material exists** in Google Drive (design deck, app flow, SOPs) |
-| Podcast identification | New code exists | ❌ **Not in this repo** — no feed ingestion, search, or discovery code at all |
-| Mobile / desktop clients | Wired to the engine | ❌ **Do not exist** — no native, React Native, Flutter, Electron or Tauri code |
+| Podcast identification | New code exists | ✅ **Built and verified** — RSS/Atom reader (no keys) + Podcast Index search; ingest, idempotence and profile gate tested against real Postgres |
+| Mobile / desktop clients | Wired to the engine | ⚠️ **Built, partly verified** — web UI verified in a browser end-to-end; Expo client typechecks against real RN types but has not been run on a device |
 
 **Bottom line:** the engineering is in better shape than the delivery pipeline.
-The code is real, builds, and its core algorithm is provably correct — but none
-of it is on `master`, no hosting, auth, or database service is connected to this
-repository, and the only client that exists is the Next.js web app.
+The code is real, builds, and both core algorithms — concatenation and
+identification — are verified end-to-end against real inputs. What remains
+blocked is everything that needs credentials: no Vercel project, no Neon
+database, no Clerk keys, so nothing is deployed and sign-in does not exist.
 
 ---
 
@@ -60,6 +64,9 @@ every integration reports "not configured" rather than crashing.
 | `npm run build` | Production build |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run verify:concat` | End-to-end concat check (needs ffmpeg; no DB/cloud) |
+| `npm run verify:podcasts` | Identification check — feed parsing, auth signing, ingest + profile gate against in-process Postgres |
+| `npm run verify:live` | Builds, starts the server, runs the HTTP + browser suites, stops |
+| `npm run verify:all` | typecheck + concat + podcasts (no server needed) |
 | `npm run worker:process -- <stitchId>` | Run the worker for one stitch |
 | `npm run db:generate` / `db:migrate` / `db:studio` | Drizzle migrations + browser |
 
@@ -77,15 +84,24 @@ src/
   app/
     page.tsx                     Landing (placeholder — UI kit not yet wired in)
     admin/                       Integration admin dashboard (server component)
+    podcasts/                    Find-podcasts screen (client component + CSS module)
     api/
       health/                    Liveness probe
       integrations/status/       Live per-service health (feeds admin cards)
+      podcasts/preview/          Read a feed — no DB, no API key required
+      podcasts/search/           Directory search (503 when unconfigured)
+      podcasts/follow/           Ingest a feed + open the profile gate
+      podcasts/library/          Followed shows + recent episodes
       stitches/                  Enqueue a stitch job
       stripe/webhook/            Stripe receiver (signature-verified)
   db/schema.ts                   users, subs, shows, episodes, stitches, admin
   lib/
     env.ts                       Central env access + isConfigured/requireEnv
     integrations/                One adapter per service + registry
+    podcasts/                    Identification — see docs/IDENTIFICATION.md
+      rss.ts                     RSS/Atom reader + duration parsing (pure)
+      podcastindex.ts            Directory search + request signing
+      ingest.ts                  Upserts, follow list, profile-gated reads
     concat/                      Direct-code concatenation engine
       pipeline.ts                Pure planStitch + injected runStitchJob
       audio/ffmpeg.ts            Normalize + stream-copy concat + probe
@@ -95,10 +111,15 @@ src/
       worker.ts                  processStitch orchestration
   middleware.ts                  Clerk auth gate (no-op until keys are set)
 
+packages/
+  api-client/    Shared, dependency-free typed HTTP client — used by BOTH clients
+apps/
+  mobile/        Expo / React Native client (expo-router)
 tokens/        Design tokens — colors, typography, spacing, effects, fonts
 assets/logo/   Logo lockups + favicon (SVG)
 ui_kits/       Website UI kit (currently: pricing page)
 docs/          ARCHITECTURE.md (cost model) · INTEGRATIONS.md (wiring)
+               IDENTIFICATION.md (how shows get into the catalogue)
 ```
 
 ---
@@ -138,8 +159,12 @@ the single biggest saving; (2) zero-egress delivery via R2 + CDN;
 |--------|--------|--------|
 | Concat accuracy | **5.068 s** output from 2 s + 3 s inputs | `npm run verify:concat`, ffmpeg 7.0.2-static |
 | Output integrity | **81,544-byte** playable MP3, duration probed | Same run |
-| Production build | **Pass** — all 7 routes compiled | `next build` |
-| Type safety | **Pass** — zero errors | `tsc --noEmit` |
+| Production build | **Pass** — all 12 routes compiled | `next build` |
+| Type safety | **Pass** — zero errors, web and mobile | `tsc --noEmit` in root and `apps/mobile` |
+| Feed parsing | **Pass** — RSS + Atom, 3 duration formats, junk rejected | `npm run verify:podcasts` |
+| Ingest idempotence | **Pass** — 1 show / 3 episodes after 3 ingests; cached transcript preserved | Same run, real Postgres |
+| Profile gate | **Pass** — unfollowed show yields 0 episodes | Same run |
+| UI ↔ backend | **Pass** — browser pasted a feed, server data rendered, 0 console errors | `npm run verify:ui` |
 
 The 68 ms over 5.000 s is expected MP3 frame padding, not drift.
 
@@ -277,26 +302,50 @@ positioning).
 not reachable from this environment, so any Cowork data held only on a local
 machine is outside what could be checked here.
 
-### ❌ Podcast identification — no such code in this repo
+### ✅ Podcast identification — built and verified
 
-The data model anticipates it: `shows` carries `feedUrl` and an `externalId`
-documented as "RSS feed URL hash or podcast index id." **The code to populate it
-does not exist.** There is no feed fetcher, no RSS/Atom parser, no podcast-index
-or directory API client, no search or discovery endpoint, and no ingestion job.
-The concat engine consumes `shows`/`episodes` rows; nothing yet creates them.
+Full design in [`docs/IDENTIFICATION.md`](docs/IDENTIFICATION.md). Two providers:
+an RSS/Atom reader that needs **no credentials**, and Podcast Index directory
+search that needs a key. `npm run verify:podcasts` exercises the real code —
+including real SQL against an in-process Postgres — and asserts:
 
-### ❌ Mobile and desktop clients — none exist
+```
+• RSS: parsed 3 episodes, durations + dates correct
+• duration parser: rejects junk, accepts seconds / M:SS / H:MM:SS
+• single-item feed: no XML single-node collapse
+• Atom: show + enclosure link parsed
+• Podcast Index auth: signature correct, secret never transmitted
+• ingest: show + 3 episodes
+• re-ingest is idempotent: 1 show, 3 episodes after two passes
+• re-ingest preserves cached transcripts
+• profile gate: unfollowed show yields 0 shows, 0 episodes
+• profile gate holds: second, unfollowed show does not leak in
+```
 
-The repository contains exactly one client: the Next.js web app under `src/app/`.
-A search of the full tree finds **no** `app.json`/`app.config`, Expo or React
-Native dependency, `metro.config`, `pubspec.yaml`, `android/` or `ios/`
-directory, `.xcodeproj`, Swift or Kotlin source, and no Electron, Tauri or
-Capacitor config.
+The transcript-preservation and profile-gate assertions are the two that protect
+existing invariants: a feed refresh must not discard a cached transcript (the
+biggest cost lever), and an unfollowed show must stay unreachable.
 
-`docs/ARCHITECTURE.md` describes Clerk as providing shared identity for "the
-upcoming native mobile apps" and the API routes as "the shared backend for web
-and mobile" — that is the *intended* design, not a shipped integration. The
-Drive design deck specifies 13 app screens; none are implemented in any form.
+### ⚠️ Clients — web verified in a browser, mobile typechecked only
+
+Both import the same `@podzi/api-client` package, so a response-shape change
+breaks compilation on both platforms. That caught a real drift during this work:
+`GET /api/health` returns `{ok, service, time}` while the client type claimed
+`{status}` — found by `verify-e2e`, not by a user.
+
+**Web** is verified end-to-end in Chromium (`npm run verify:ui`): open
+`/podcasts`, switch to the feed-URL tab, paste a feed, press Preview, and assert
+the show title, both episode titles, and durations formatted by the shared helper
+all appear — with zero failed requests and zero console errors. That last
+assertion surfaced a missing app icon (`/favicon.ico` 404), now fixed by wiring
+`assets/logo/favicon.svg` in as `src/app/icon.svg`.
+
+**Mobile** (`apps/mobile`, Expo + expo-router) typechecks against real
+Expo/React Native types and shares the tested API layer, but **no simulator or
+device build has been run here** — that needs a macOS/Android toolchain this
+environment does not have. Treat it as authored-and-typechecked, not
+field-tested. The Drive design deck specifies 13 app screens; one is
+implemented.
 
 ---
 
@@ -304,23 +353,27 @@ Drive design deck specifies 13 app screens; none are implemented in any form.
 
 Ordered by what blocks a deployable v1:
 
-1. **Nothing is deployed.** No Vercel project, no Neon database, no Clerk keys.
-   The adapters are ready; the services are not connected.
-2. **No CI.** Zero checks on any PR. `typecheck` + `build` + `verify:concat`
-   are the obvious first workflow.
-3. **No podcast identification.** Nothing populates `shows` or `episodes` — the
-   catalogue the concat engine reads from has no ingestion path.
-4. **No mobile or desktop client.** The web app is the only client; all 13 app
-   screens are design-only. Platform choice (React Native / Expo, Flutter, or a
-   PWA) is an open decision, not a wiring task.
-5. **12 of 13 website pages** are design-only.
-6. **The landing page is a placeholder** — `src/app/page.tsx` does not yet use
+1. **Nothing is deployed, and this is the blocker for everything below.** No
+   Vercel project, no Neon database, no Clerk keys. The adapters are written and
+   health-checked; the services need credentials only you can supply.
+2. **No sign-in, so no user-scoped writes from the UI.** `/api/podcasts/follow`
+   and `/api/stitches` both work and are tested, but both still take an explicit
+   `userId` (`TODO(auth)`) because Clerk sessions are not wired. The web Follow
+   action is deliberately disabled rather than faking a user.
+3. **No CI.** Zero checks on any PR. `npm run verify:all` plus `verify:live` is
+   the obvious first workflow.
+4. **Mobile is unrun.** `apps/mobile` typechecks and shares the tested API
+   layer, but no device or simulator build has executed. 12 of the 13 designed
+   app screens are not implemented.
+5. **No scheduled feed refresh.** Feeds are read on demand; nothing re-reads
+   followed shows to pick up new episodes.
+6. **12 of 13 website pages** are design-only.
+7. **The landing page is a placeholder** — `src/app/page.tsx` does not yet use
    the design system in `tokens/` and `ui_kits/`.
-7. **Pipeline features not wired:** smart-stitch trimming / sponsor-skip
+8. **Pipeline features not wired:** smart-stitch trimming / sponsor-skip
    (data model exists, segment-selection logic does not), a production queue
-   consumer (currently a CLI runner), Stripe→entitlement persistence, and
-   Clerk-derived auth on `/api/stitches`.
-8. **ffmpeg is an undeclared runtime dependency** — document it in deploy setup
+   consumer (currently a CLI runner), and Stripe→entitlement persistence.
+9. **ffmpeg is an undeclared runtime dependency** — document it in deploy setup
    or vendor `ffmpeg-static`.
 
 ## Documentation
@@ -329,6 +382,9 @@ Ordered by what blocks a deployable v1:
   transcribe-once strategy, background-worker rationale.
 - [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md) — per-service wiring, env vars,
   and how to (re-)authenticate from the admin dashboard.
+- [`docs/IDENTIFICATION.md`](docs/IDENTIFICATION.md) — how shows and episodes get
+  into the catalogue: provider choice, feed-parsing edge cases, idempotence, the
+  profile gate, and how to verify all of it without credentials.
 
 ## Security
 

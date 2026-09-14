@@ -25,7 +25,8 @@ export type IntegrationServiceName =
   | "clerk"
   | "neon"
   | "n8n"
-  | "stripe";
+  | "stripe"
+  | "podcastindex";
 
 export interface IntegrationAdapter {
   service: IntegrationServiceName;

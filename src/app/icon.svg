@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Podzi.ai favicon">
+  <rect x="0" y="0" width="64" height="64" rx="14" fill="#E5322B"></rect>
+  <path d="M17 36 C17 22, 47 22, 47 36" fill="none" stroke="#fff" stroke-width="5.5" stroke-linecap="round"></path>
+  <rect x="12.5" y="33" width="9" height="15" rx="4.5" fill="#fff"></rect>
+  <rect x="42.5" y="33" width="9" height="15" rx="4.5" fill="#fff"></rect>
+  <path d="M31 35 C26.5 31.5, 21 30, 16 31.5 L16 44 C21 45, 26.5 47, 31 50 Z" fill="#fff"></path>
+  <path d="M33 35 C37.5 31.5, 43 30, 48 31.5 L48 44 C43 45, 37.5 47, 33 50 Z" fill="#fff"></path>
+</svg>

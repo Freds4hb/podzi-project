@@ -13,13 +13,19 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "verify:concat": "tsx scripts/verify-concat.mts",
-    "worker:process": "tsx scripts/process-stitch.mts"
+    "worker:process": "tsx scripts/process-stitch.mts",
+    "verify:podcasts": "tsx scripts/verify-podcasts.mts",
+    "verify:all": "npm run typecheck && npm run verify:concat && npm run verify:podcasts",
+    "verify:e2e": "tsx scripts/verify-e2e.mts",
+    "verify:ui": "tsx scripts/verify-ui.mts",
+    "verify:live": "next build && (PORT=3000 next start & echo $! > .next/e2e.pid) && npx wait-on -t 60000 http://127.0.0.1:3000/api/health && npm run verify:e2e && npm run verify:ui; kill $(cat .next/e2e.pid) 2>/dev/null || true"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.726.0",
     "@clerk/nextjs": "^6.9.6",
     "@neondatabase/serverless": "^0.10.4",
     "drizzle-orm": "^0.38.3",
+    "fast-xml-parser": "^5.11.1",
     "next": "^15.1.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -27,11 +33,14 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@types/node": "^22.10.5",
     "@types/react": "^19.0.4",
     "@types/react-dom": "^19.0.2",
     "drizzle-kit": "^0.30.1",
+    "playwright": "^1.63.0",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "wait-on": "^9.1.0"
   }
 }

@@ -10,6 +10,7 @@ import { clerkAdapter } from "./clerk";
 import { neonAdapter } from "./neon";
 import { n8nAdapter } from "./n8n";
 import { stripeAdapter } from "./stripe";
+import { podcastIndexAdapter } from "./podcastindex";
 
 /** Order here is the display order in the admin dashboard. */
 export const integrationAdapters: IntegrationAdapter[] = [
@@ -18,6 +19,7 @@ export const integrationAdapters: IntegrationAdapter[] = [
   neonAdapter,
   n8nAdapter,
   stripeAdapter,
+  podcastIndexAdapter,
 ];
 
 /**

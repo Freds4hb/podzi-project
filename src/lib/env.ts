@@ -39,6 +39,10 @@ export const env = {
   VERCEL_PROJECT_ID: process.env.VERCEL_PROJECT_ID ?? "",
   VERCEL_TEAM_ID: process.env.VERCEL_TEAM_ID ?? "",
 
+  // Podcast identification (Podcast Index directory search)
+  PODCAST_INDEX_API_KEY: process.env.PODCAST_INDEX_API_KEY ?? "",
+  PODCAST_INDEX_API_SECRET: process.env.PODCAST_INDEX_API_SECRET ?? "",
+
   // Concatenation pipeline — transcription + summarization providers
   TRANSCRIPTION_API_KEY: process.env.TRANSCRIPTION_API_KEY ?? "",
   TRANSCRIPTION_BASE_URL: process.env.TRANSCRIPTION_BASE_URL ?? "",
