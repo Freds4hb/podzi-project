@@ -39,11 +39,15 @@ Detail and method in [Verification log](#verification-log).
 | Podcast identification | New code exists | ✅ **Built and verified** — RSS/Atom reader (no keys) + Podcast Index search; ingest, idempotence and profile gate tested against real Postgres |
 | Mobile / desktop clients | Wired to the engine | ⚠️ **Built, partly verified** — web UI verified in a browser end-to-end; Expo client typechecks against real RN types but has not been run on a device |
 
-**Bottom line:** the engineering is in better shape than the delivery pipeline.
-The code is real, builds, and both core algorithms — concatenation and
-identification — are verified end-to-end against real inputs. What remains
-blocked is everything that needs credentials: no Vercel project, no Neon
-database, no Clerk keys, so nothing is deployed and sign-in does not exist.
+**Bottom line:** the engineering is in better shape than the delivery pipeline,
+but the pipeline is now prepared rather than absent. Both core algorithms —
+concatenation and identification — are verified end-to-end against real inputs;
+migrations are committed and proven to apply; CI runs every suite without
+credentials; and [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) is a step-by-step
+runbook. What remains is the part only you can do: provisioning Neon, Clerk and
+Vercel. One structural caveat worth knowing before you start — the stitch worker
+needs `ffmpeg` and so cannot run on Vercel; a Vercel-only deploy gives you the
+whole product *except* producing stitched audio.
 
 ---
 
@@ -67,6 +71,8 @@ every integration reports "not configured" rather than crashing.
 | `npm run verify:podcasts` | Identification check — feed parsing, auth signing, ingest + profile gate against in-process Postgres |
 | `npm run verify:live` | Builds, starts the server, runs the HTTP + browser suites, stops |
 | `npm run verify:all` | typecheck + concat + podcasts (no server needed) |
+| `npm run check:env` | Report which variables are set and what each missing one turns off |
+| `npm run check:env -- --require-core` | Same, but exit 1 if the database/auth core is incomplete |
 | `npm run worker:process -- <stitchId>` | Run the worker for one stitch |
 | `npm run db:generate` / `db:migrate` / `db:studio` | Drizzle migrations + browser |
 
@@ -111,6 +117,8 @@ src/
       worker.ts                  processStitch orchestration
   middleware.ts                  Clerk auth gate (no-op until keys are set)
 
+drizzle/       Generated SQL migrations (committed; applied by db:migrate)
+.github/       CI workflow — typecheck, build, and every verify suite
 packages/
   api-client/    Shared, dependency-free typed HTTP client — used by BOTH clients
 apps/
@@ -120,6 +128,7 @@ assets/logo/   Logo lockups + favicon (SVG)
 ui_kits/       Website UI kit (currently: pricing page)
 docs/          ARCHITECTURE.md (cost model) · INTEGRATIONS.md (wiring)
                IDENTIFICATION.md (how shows get into the catalogue)
+               DEPLOYMENT.md (provisioning runbook + the worker split)
 ```
 
 ---
@@ -353,15 +362,22 @@ implemented.
 
 Ordered by what blocks a deployable v1:
 
-1. **Nothing is deployed, and this is the blocker for everything below.** No
-   Vercel project, no Neon database, no Clerk keys. The adapters are written and
-   health-checked; the services need credentials only you can supply.
+1. **Nothing is deployed yet, and this is the blocker for everything below.**
+   The deploy path is now prepared — committed migrations, CI, an env preflight,
+   and a step-by-step runbook in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) —
+   but no Vercel project, Neon database or Clerk keys exist. Those need
+   credentials only you can supply.
+   **Note the worker split:** the web app runs on Vercel, but the stitch worker
+   shells out to `ffmpeg` and cannot. It needs a container host. Deploying only
+   to Vercel gives a working product for everything except producing stitched
+   audio.
 2. **No sign-in, so no user-scoped writes from the UI.** `/api/podcasts/follow`
    and `/api/stitches` both work and are tested, but both still take an explicit
    `userId` (`TODO(auth)`) because Clerk sessions are not wired. The web Follow
    action is deliberately disabled rather than faking a user.
-3. **No CI.** Zero checks on any PR. `npm run verify:all` plus `verify:live` is
-   the obvious first workflow.
+3. ~~No CI.~~ **Added** — `.github/workflows/ci.yml` runs both typechecks, the
+   build, the concat and identification suites, and the live HTTP + browser
+   suites, all without credentials.
 4. **Mobile is unrun.** `apps/mobile` typechecks and shares the tested API
    layer, but no device or simulator build has executed. 12 of the 13 designed
    app screens are not implemented.
@@ -385,6 +401,10 @@ Ordered by what blocks a deployable v1:
 - [`docs/IDENTIFICATION.md`](docs/IDENTIFICATION.md) — how shows and episodes get
   into the catalogue: provider choice, feed-parsing edge cases, idempotence, the
   profile gate, and how to verify all of it without credentials.
+- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — the runbook: provisioning order,
+  which variable goes where, how to verify each step, why the worker needs a
+  container host rather than Vercel, and an honest table of what a Vercel-only
+  deployment does and does not do.
 
 ## Security
 

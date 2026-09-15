@@ -21,6 +21,8 @@
  */
 import { createHash } from "node:crypto";
 import assert from "node:assert/strict";
+import { readdir, readFile } from "node:fs/promises";
+import path from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import { parseFeed, parseDuration, feedExternalId } from "../src/lib/podcasts/rss.ts";
@@ -33,6 +35,7 @@ import {
   type PodcastDatabase,
 } from "../src/lib/podcasts/ingest.ts";
 import * as schema from "../src/db/schema.ts";
+import { integrationAdapters } from "../src/lib/integrations/registry.ts";
 
 /* -------------------------------------------------------------------------- */
 /* Fixtures                                                                   */
@@ -102,6 +105,36 @@ const ATOM_FEED = `<?xml version="1.0" encoding="UTF-8"?>
 
 function step(message: string) {
   console.log(`• ${message}`);
+}
+
+/** Directory drizzle-kit writes migrations to (see drizzle.config.ts `out`). */
+const MIGRATIONS_DIR = "drizzle";
+
+/**
+ * Apply every generated migration, in order, to a fresh database.
+ *
+ * Statements are separated by drizzle's `--> statement-breakpoint` marker
+ * rather than by `;`, because splitting on semicolons would break any function
+ * body or quoted literal containing one.
+ */
+async function applyMigrations(pg: PGlite): Promise<number> {
+  const files = (await readdir(MIGRATIONS_DIR))
+    .filter((name) => name.endsWith(".sql"))
+    .sort();
+
+  assert.ok(
+    files.length > 0,
+    `No migrations found in ${MIGRATIONS_DIR}/. Run "npm run db:generate".`,
+  );
+
+  for (const file of files) {
+    const sql = await readFile(path.join(MIGRATIONS_DIR, file), "utf8");
+    for (const statement of sql.split("--> statement-breakpoint")) {
+      const trimmed = statement.trim();
+      if (trimmed) await pg.exec(trimmed);
+    }
+  }
+  return files.length;
 }
 
 async function main() {
@@ -174,49 +207,36 @@ async function main() {
   const pg = new PGlite();
   const db = drizzle(pg, { schema }) as unknown as PodcastDatabase;
 
-  // Build the schema. Kept inline (rather than running drizzle-kit) so this
-  // script has no build step and no migration-state dependency.
-  await pg.exec(`
-    CREATE TYPE plan_tier AS ENUM ('free','pro','family_pro');
-    CREATE TYPE transcript_status AS ENUM ('absent','pending','ready','failed');
-    CREATE TABLE users (
-      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-      clerk_user_id text NOT NULL UNIQUE,
-      email text,
-      plan_tier plan_tier NOT NULL DEFAULT 'free',
-      created_at timestamptz NOT NULL DEFAULT now()
+  // Build the schema by applying the REAL generated migrations from drizzle/.
+  //
+  // This deliberately does not hand-write DDL. An earlier version did, and it
+  // had already drifted from the schema it was meant to mirror (it declared the
+  // plan_tier enum as 'family_pro' where the schema says 'family'), which is
+  // exactly the class of bug a duplicated schema invites. Applying the real
+  // migration means this script also proves `npm run db:migrate` will work
+  // before it is ever pointed at Neon.
+  const migrationCount = await applyMigrations(pg);
+  step(`applied ${migrationCount} real migration(s) from ${MIGRATIONS_DIR}/`);
+
+  // The enum backing integration_connections.service must list every service
+  // the adapter registry exposes, or writing that row fails at runtime.
+  const enumValues = await pg.query<{ enumlabel: string }>(
+    `SELECT enumlabel FROM pg_enum e
+       JOIN pg_type t ON t.oid = e.enumtypid
+      WHERE t.typname = 'integration_service' ORDER BY enumlabel`,
+  );
+  const dbServices = enumValues.rows.map((r) => r.enumlabel).sort();
+  const registryServices = integrationAdapters.map((a) => a.service).sort();
+  for (const service of registryServices) {
+    assert.ok(
+      dbServices.includes(service),
+      `adapter "${service}" is not in the integration_service enum — ` +
+        `add it to src/db/schema.ts and generate a migration`,
     );
-    CREATE TABLE shows (
-      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-      external_id text NOT NULL UNIQUE,
-      title text NOT NULL,
-      author text,
-      feed_url text NOT NULL,
-      artwork_url text,
-      description text,
-      created_at timestamptz NOT NULL DEFAULT now()
-    );
-    CREATE TABLE followed_shows (
-      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-      user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      show_id uuid NOT NULL REFERENCES shows(id) ON DELETE CASCADE,
-      created_at timestamptz NOT NULL DEFAULT now(),
-      UNIQUE (user_id, show_id)
-    );
-    CREATE TABLE episodes (
-      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-      show_id uuid NOT NULL REFERENCES shows(id) ON DELETE CASCADE,
-      external_id text NOT NULL UNIQUE,
-      title text NOT NULL,
-      description text,
-      audio_url text NOT NULL,
-      duration_seconds integer,
-      published_at timestamptz,
-      transcript_status transcript_status NOT NULL DEFAULT 'absent',
-      transcript_url text,
-      created_at timestamptz NOT NULL DEFAULT now()
-    );
-  `);
+  }
+  step(
+    `integration_service enum covers all ${registryServices.length} registered adapters`,
+  );
 
   const [user] = await pg
     .query<{ id: string }>(

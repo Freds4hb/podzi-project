@@ -58,13 +58,23 @@ export const stitchStatus = pgEnum("stitch_status", [
   "failed",
 ]);
 
-/** Services surfaced on the admin integrations dashboard. */
+/**
+ * Services surfaced on the admin integrations dashboard.
+ *
+ * MUST stay in sync with `IntegrationServiceName` in
+ * src/lib/integrations/types.ts. The TypeScript union drives the adapter
+ * registry; this enum constrains `integration_connections.service` and
+ * `activity_logs.service`. A name present in one but not the other compiles
+ * fine and then fails at runtime as a Postgres enum error, so adding a service
+ * means editing both — and generating a migration.
+ */
 export const integrationService = pgEnum("integration_service", [
   "vercel",
   "clerk",
   "neon",
   "n8n",
   "stripe",
+  "podcastindex",
 ]);
 
 /* -------------------------------------------------------------------------- */

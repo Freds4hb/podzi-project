@@ -12,7 +12,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { env } from "@/lib/env";
-import { planStitch } from "@/lib/concat";
+// Imported from the specific module, NOT the "@/lib/concat" barrel: the barrel
+// re-exports processStitch → worker → audio/ffmpeg, which would pull the entire
+// worker and its child-process code into this route's serverless bundle. This
+// route only plans and enqueues; it never runs ffmpeg.
+import { planStitch } from "@/lib/concat/pipeline";
 import {
   getCandidateEpisodesForUser,
   enqueueStitch,
