@@ -65,6 +65,15 @@ jobs:
       - name: Environment preflight (report only)
         run: npm run check:env
 
+      # With no credentials there is nothing to verify: this reports "nothing to
+      # verify" and exits 0. It runs anyway so the script cannot rot. A
+      # deploy-verification tool that is only ever executed by hand, at the
+      # moment of a deploy, is one that breaks quietly and gets discovered at the
+      # worst possible time. This also keeps its imports honest — it pulls in the
+      # real integration registry, so an adapter change that breaks it fails here.
+      - name: Deployment verification (no credentials — reports and exits 0)
+        run: npm run verify:deploy
+
   live:
     name: Live — HTTP + browser end-to-end
     runs-on: ubuntu-latest

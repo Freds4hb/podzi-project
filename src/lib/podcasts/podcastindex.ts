@@ -28,6 +28,18 @@ const API_BASE = "https://api.podcastindex.org/api/1.0";
 export const DEFAULT_SEARCH_LIMIT = 20;
 
 /**
+ * How long to wait on the directory before giving up.
+ *
+ * Every outbound call needs its own budget: on a serverless host a fetch with no
+ * timeout holds the function open until the platform kills it, which bills the
+ * full wall time and surfaces to the user as an opaque 504 rather than an error
+ * the UI can explain. The feed routes already bound their reads the same way; a
+ * keyword search should answer faster than a feed download, so the budget is
+ * tighter.
+ */
+const SEARCH_TIMEOUT_MS = 8_000;
+
+/**
  * Build the three auth headers for a Podcast Index request.
  *
  * @param key      API key.
@@ -107,13 +119,26 @@ export const podcastIndexDirectory: PodcastDirectory = {
     // Only feeds we can actually play from.
     url.searchParams.set("fulltext", "false");
 
-    const res = await fetch(url, {
-      headers: buildAuthHeaders(
-        env.PODCAST_INDEX_API_KEY,
-        env.PODCAST_INDEX_API_SECRET,
-      ),
-      cache: "no-store",
-    });
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        headers: buildAuthHeaders(
+          env.PODCAST_INDEX_API_KEY,
+          env.PODCAST_INDEX_API_SECRET,
+        ),
+        cache: "no-store",
+        signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS),
+      });
+    } catch (err) {
+      // Distinguish "the directory is slow" from "the request was malformed",
+      // because only the first is worth retrying.
+      if (err instanceof Error && err.name === "TimeoutError") {
+        throw new Error(
+          `Podcast Index did not respond within ${SEARCH_TIMEOUT_MS}ms.`,
+        );
+      }
+      throw err;
+    }
     if (!res.ok) {
       throw new Error(`Podcast Index search failed: HTTP ${res.status}.`);
     }

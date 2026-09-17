@@ -73,6 +73,8 @@ every integration reports "not configured" rather than crashing.
 | `npm run verify:all` | typecheck + concat + podcasts (no server needed) |
 | `npm run check:env` | Report which variables are set and what each missing one turns off |
 | `npm run check:env -- --require-core` | Same, but exit 1 if the database/auth core is incomplete |
+| `npm run verify:deploy` | Whether the configured services actually **work**: schema applied, keys paired, APIs reachable |
+| `npm run verify:deploy -- --url <url>` | Same, plus a smoke test of a live deployment (health, UI, admin not public) |
 | `npm run worker:process -- <stitchId>` | Run the worker for one stitch |
 | `npm run db:generate` / `db:migrate` / `db:studio` | Drizzle migrations + browser |
 
@@ -363,10 +365,12 @@ implemented.
 Ordered by what blocks a deployable v1:
 
 1. **Nothing is deployed yet, and this is the blocker for everything below.**
-   The deploy path is now prepared — committed migrations, CI, an env preflight,
-   and a step-by-step runbook in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) —
-   but no Vercel project, Neon database or Clerk keys exist. Those need
-   credentials only you can supply.
+   The deploy path is prepared as far as it can be without credentials —
+   committed migrations, CI, an env preflight, a verification command
+   (`npm run verify:deploy`) that proves a provisioned stack actually works, and
+   a step-by-step runbook in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — but no
+   Vercel project, Neon database or Clerk keys exist. Those need credentials
+   only you can supply, and no amount of further work here substitutes for them.
    **Note the worker split:** the web app runs on Vercel, but the stitch worker
    shells out to `ffmpeg` and cannot. It needs a container host. Deploying only
    to Vercel gives a working product for everything except producing stitched
@@ -375,6 +379,10 @@ Ordered by what blocks a deployable v1:
    and `/api/stitches` both work and are tested, but both still take an explicit
    `userId` (`TODO(auth)`) because Clerk sessions are not wired. The web Follow
    action is deliberately disabled rather than faking a user.
+   This no longer implies an *exposed* deployment: a production build with no
+   Clerk keys now closes `/admin`, `/api/admin/*` and `/api/integrations/status`
+   with a 503 instead of serving them. Signing in is still unimplemented; being
+   unprotected is not.
 3. ~~No CI.~~ **Added** — `.github/workflows/ci.yml` runs both typechecks, the
    build, the concat and identification suites, and the live HTTP + browser
    suites, all without credentials.
@@ -412,6 +420,15 @@ Ordered by what blocks a deployable v1:
   browser, commits, or PRs.
 - The Stripe webhook verifies signatures against the raw body before processing.
 - Admin health checks run server-side and return only non-secret fields.
+- **The admin surface fails closed.** `src/middleware.ts` serves `/admin`,
+  `/api/admin/*` and `/api/integrations/status` only when Clerk can authenticate
+  someone; a production build without keys refuses them (503) rather than falling
+  through. `ALLOW_UNAUTHENTICATED_ADMIN=1` overrides this, so serving an open
+  admin area is always deliberate. `verify:deploy --url` asserts the property
+  against the deployed artifact, and `verify:e2e` guards it in CI.
+- Every outbound call has a timeout. An un-bounded `fetch` on a serverless host
+  holds the function open until the platform kills it — billed in full, and
+  surfaced to the user as an opaque 504 rather than an error the UI can explain.
 - Profile gating is **structural**: `followed_shows` is an explicit allow-list and
   the planner is a pure function over an already-restricted candidate pool, so
   episodes from unfollowed shows cannot enter a stitch.

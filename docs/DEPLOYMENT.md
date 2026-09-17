@@ -54,27 +54,58 @@ Without this, nothing persists.
    so they are known to apply cleanly to an empty database before you point them
    at Neon.
 
-**Verify:** `npm run dev`, open `/admin`, and the **Neon** card should read
-*Connected*.
+**Verify:** `npm run verify:deploy`.
+
+This is worth doing rather than eyeballing the admin card, because the card
+cannot tell you the one thing most likely to be wrong. The Neon health check runs
+`SELECT 1`, which succeeds against a *completely empty* database — so if you set
+`DATABASE_URL` and skipped `db:migrate`, the card reads *Connected* while every
+real query fails at runtime. `verify:deploy` checks the tables the committed
+migrations actually create, and tells you to run `db:migrate` when they are
+missing. It also warns if you used the direct endpoint instead of the pooled
+one, which works until concurrency arrives and then exhausts connections.
 
 ### 2 · Clerk — authentication
 
-Until this is done, two things are true and both matter:
+Until this is done, one thing is true and it matters:
 
-- `/admin` is **not protected**. `src/middleware.ts` deliberately becomes a
-  pass-through when `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` is absent, so the
-  scaffold runs locally — which means an unconfigured *public* deployment leaves
-  the admin dashboard open. Do not expose one publicly.
-- No request can be attributed to a user, so `/api/podcasts/follow` and
+- **No request can be attributed to a user**, so `/api/podcasts/follow` and
   `/api/stitches` still take an explicit `userId` (marked `TODO(auth)` in both).
   The web Follow action is disabled rather than inventing a user.
+
+What is *not* true any more: the admin surface is no longer left open. A
+**production** build with no Clerk keys refuses `/admin`, `/api/admin/*` and
+`/api/integrations/status` with a 503 — it fails closed, because a deployment
+that cannot authenticate anyone has no business serving an admin dashboard or a
+description of your infrastructure. The public gets a bare `Service
+unavailable.`; the reason, and what to do about it, goes to the server log where
+you are actually looking:
+
+```
+[middleware] Refused /admin: no Clerk credentials in this deployment, …
+```
+
+Development is unaffected — without keys the admin surface is open locally, which
+is what makes a bare checkout usable. If you deliberately want an unprotected
+admin area on a production build, set `ALLOW_UNAUTHENTICATED_ADMIN=1`. It exists
+so that choice is explicit and greppable instead of being the accidental
+consequence of a variable nobody set.
+
+> `/api/integrations/status` is in that protected list even though it is not
+> under `/admin`. Its payload carries no credentials, but it does report the
+> database host, the Clerk live/test mode, the n8n instance URL and the Vercel
+> project id — a description of your infrastructure, and not anonymous-caller
+> material.
 
 1. Create an application at [dashboard.clerk.com](https://dashboard.clerk.com).
 2. Set `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY`.
 3. Point Clerk's allowed origins at your Vercel domain.
 
-**Verify:** the **Clerk** card on `/admin` reads *Connected*, and `/admin` now
-requires a sign-in.
+**Verify:** `npm run verify:deploy` — it checks that both keys are present *and
+paired* (a `pk_test_…` publishable with an `sk_live_…` secret is a common paste
+error that authenticates against a different user directory and fails with an
+error naming neither key), then probes the Clerk API. The **Clerk** card on
+`/admin` should read *Connected*, and `/admin` should now require a sign-in.
 
 > Wiring sessions through to the two routes is still outstanding work — see
 > Known gaps in the [README](../README.md). Setting the keys protects `/admin`
@@ -89,8 +120,13 @@ requires a sign-in.
    with no `DATABASE_URL` will build fine and then 503 on every DB route.
 3. Deploy.
 
-**Verify:** `curl https://<your-domain>/api/health` returns
-`{"ok":true,...}`, and `/podcasts` loads and can preview a feed.
+**Verify:** `npm run verify:deploy -- --url https://<your-domain>`.
+
+Against the live deployment it checks `/api/health`, that `/podcasts` renders,
+that directory search reports itself honestly — and that `/admin` and
+`/api/integrations/status` are **not** served to an anonymous request. That last
+one is checked against the deployed artifact rather than inferred from the
+source, because it is the failure you cannot see by reading the repository.
 
 Two notes specific to this app:
 
@@ -145,10 +181,19 @@ both are set.
 ## Pre-deploy checklist
 
 ```bash
-npm run check:env -- --require-core   # fails if DB/auth are incomplete
+npm run check:env -- --require-core   # is every core variable present?
+npm run verify:deploy                 # do the configured services actually work?
 npm run verify:all                    # typecheck + concat + identification
 npm run verify:live                   # build, serve, HTTP + browser suites
 ```
+
+`check:env` and `verify:deploy` answer different questions, and you want both.
+The first asks whether a variable is *set*; the second asks whether what it
+points at *works* — reachable database, applied schema, paired keys, live API.
+Every failure mode listed in this runbook passes `check:env`.
+
+Add `--url https://<your-domain>` to `verify:deploy` once the deployment exists,
+and `--require-core` to make it a non-zero-exit gate in a deploy pipeline.
 
 `verify:concat` needs ffmpeg locally (install it, or `npm i ffmpeg-static
 ffprobe-static` and point `FFMPEG_PATH`/`FFPROBE_PATH` at them). CI installs

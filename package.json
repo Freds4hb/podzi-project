@@ -18,8 +18,9 @@
     "verify:all": "npm run typecheck && npm run verify:concat && npm run verify:podcasts",
     "verify:e2e": "tsx scripts/verify-e2e.mts",
     "verify:ui": "tsx scripts/verify-ui.mts",
-    "verify:live": "next build && (PORT=3000 next start & echo $! > .next/e2e.pid) && npx wait-on -t 60000 http://127.0.0.1:3000/api/health && npm run verify:e2e && npm run verify:ui; kill $(cat .next/e2e.pid) 2>/dev/null || true",
-    "check:env": "tsx scripts/check-env.mts"
+    "verify:live": "bash scripts/verify-live.sh",
+    "check:env": "tsx scripts/check-env.mts",
+    "verify:deploy": "tsx scripts/verify-deploy.mts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.726.0",

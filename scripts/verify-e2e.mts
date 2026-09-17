@@ -152,19 +152,43 @@ async function main() {
     );
     step("GET /api/podcasts/library → 503 (no DATABASE_URL), no crash");
 
-    /* 7 — the UI pages actually render ------------------------------------- */
-    for (const [path, needle] of [
-      ["/podcasts", "Find podcasts"],
-      ["/admin", "Podcast Index"],
-    ] as const) {
-      const res = await fetch(`${BASE_URL}${path}`);
-      assert.equal(res.status, 200, `${path} must return 200`);
+    /* 7 — the public UI actually renders ----------------------------------- */
+    {
+      const res = await fetch(`${BASE_URL}/podcasts`);
+      assert.equal(res.status, 200, "/podcasts must return 200");
       const html = await res.text();
       assert.ok(
-        html.includes(needle),
-        `${path} must render "${needle}" — UI is not wired to the backend`,
+        html.includes("Find podcasts"),
+        '/podcasts must render "Find podcasts" — UI is not wired to the backend',
       );
-      step(`GET ${path} → 200, rendered "${needle}"`);
+      step('GET /podcasts → 200, rendered "Find podcasts"');
+    }
+
+    /* 8 — the admin surface is CLOSED, because this build has no Clerk keys --
+       This suite runs against a production build (`verify:live` does
+       `next build && next start`), which is the configuration the assertion is
+       about: `src/middleware.ts` serves the admin surface only when Clerk can
+       authenticate someone. A 200 here would mean a deployment made before
+       Clerk was provisioned exposes the dashboard and the infrastructure
+       description behind it.
+
+       This replaces an earlier assertion that `/admin` renders its integration
+       cards. That coverage is deliberately given up: the render is exercised by
+       anyone running `npm run dev`, whereas nothing but this guards the security
+       property, and CI never has Clerk keys. */
+    for (const path of ["/admin", "/api/integrations/status"] as const) {
+      const res = await fetch(`${BASE_URL}${path}`, { redirect: "manual" });
+      assert.equal(
+        res.status,
+        503,
+        `${path} must be closed (503) on a production build with no Clerk keys, got ${res.status}`,
+      );
+      const body = await res.text();
+      assert.ok(
+        !body.includes("Podcast Index"),
+        `${path} must not leak admin content in its refusal body`,
+      );
+      step(`GET ${path} → 503, admin surface closed without Clerk`);
     }
 
     console.log("\n✅ live end-to-end verified: shared client ↔ routes ↔ UI");

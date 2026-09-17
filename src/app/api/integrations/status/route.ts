@@ -7,9 +7,12 @@
  *
  * All checks run server-side; the response contains only non-secret fields.
  *
- * Access control: this lives under the Clerk-protected surface (see middleware).
- * A `TODO(auth)` marks where admin-only authorization is enforced once Clerk is
- * wired.
+ * Access control: listed in `isProtectedRoute` in `src/middleware.ts`, so Clerk
+ * gates it once configured and a credential-free production build closes it
+ * outright. The payload is non-secret but it does describe the infrastructure
+ * (database host, Clerk mode, n8n URL), which is not anonymous-caller material.
+ * A `TODO(auth)` marks where admin-*role* authorization goes once Clerk is
+ * wired — being signed in is not the same as being an admin.
  */
 import { NextResponse, type NextRequest } from "next/server";
 import {

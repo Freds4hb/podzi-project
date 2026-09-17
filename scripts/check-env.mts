@@ -57,8 +57,10 @@ const GROUPS: ServiceGroup[] = [
         key: "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
         core: true,
         gates:
-          "sign-in. While absent, middleware is a pass-through, /admin is " +
-          "UNPROTECTED, and no request can be attributed to a user.",
+          "sign-in, and any user-scoped write. While absent, a production " +
+          "build CLOSES the admin surface (503) rather than serving it, and " +
+          "no request can be attributed to a user. Locally the admin surface " +
+          "stays open for convenience.",
       },
       {
         key: "CLERK_SECRET_KEY",
