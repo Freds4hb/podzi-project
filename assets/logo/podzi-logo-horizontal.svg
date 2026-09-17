@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 96" role="img" aria-label="podzi.ai">
+  <g transform="translate(0,4)">
+    <path d="M17 47 C17 24, 75 24, 75 47" fill="none" stroke="#E5322B" stroke-width="7" stroke-linecap="round"></path>
+    <rect x="11" y="44" width="12" height="19" rx="6" fill="#E5322B"></rect>
+    <rect x="69" y="44" width="12" height="19" rx="6" fill="#E5322B"></rect>
+    <path d="M44 48 C38 43, 31 41, 24 43 L24 58 C31 59, 38 62, 44 66 Z" fill="#E5322B"></path>
+    <path d="M48 48 C54 43, 61 41, 68 43 L68 58 C61 59, 54 62, 48 66 Z" fill="#E5322B"></path>
+  </g>
+  <text x="104" y="64" font-family="Sora, system-ui, sans-serif" font-weight="800" font-size="58" letter-spacing="-1.6">
+    <tspan fill="#E5322B">podzi</tspan><tspan fill="#16181D">.ai</tspan>
+  </text>
+</svg>

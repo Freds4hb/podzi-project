@@ -1,0 +1,146 @@
+name: CI
+
+# The repository had zero checks before this file existed: every PR was merged
+# (or not) on trust. These jobs are the ones that catch real regressions, and
+# every one of them runs WITHOUT credentials — no Neon, no Clerk, no API keys —
+# so CI works on forks and on a bare checkout.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  # Allows running the suite by hand from the Actions tab.
+  workflow_dispatch:
+
+# A newer push to the same branch makes the older run irrelevant.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    name: Web — typecheck, build, verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The gstack skills submodule is not needed to build or test, and
+          # fetching it would fail for anyone without access to it.
+          submodules: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      # ffmpeg is a hard runtime dependency of the concat pipeline and is not
+      # bundled. Installing it here is what makes verify:concat meaningful
+      # rather than skipped.
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          ffmpeg -version | head -1
+
+      - name: Verify concat pipeline
+        run: npm run verify:concat
+
+      # Runs the generated migrations against an in-process Postgres, then the
+      # real ingest queries — so this also proves db:migrate will work before
+      # it is ever pointed at Neon.
+      - name: Verify podcast identification
+        run: npm run verify:podcasts
+
+      - name: Environment preflight (report only)
+        run: npm run check:env
+
+      # With no credentials there is nothing to verify: this reports "nothing to
+      # verify" and exits 0. It runs anyway so the script cannot rot. A
+      # deploy-verification tool that is only ever executed by hand, at the
+      # moment of a deploy, is one that breaks quietly and gets discovered at the
+      # worst possible time. This also keeps its imports honest — it pulls in the
+      # real integration registry, so an adapter change that breaks it fails here.
+      - name: Deployment verification (no credentials — reports and exits 0)
+        run: npm run verify:deploy
+
+  live:
+    name: Live — HTTP + browser end-to-end
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Playwright's own Chromium, so the version always matches the installed
+      # library. Locally, CHROMIUM_PATH can point at a system browser instead.
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Build
+        run: npm run build
+
+      - name: Start server
+        run: |
+          npm start &
+          npx wait-on -t 60000 http://127.0.0.1:3000/api/health
+
+      # Drives the shared @podzi/api-client over real HTTP against the real
+      # routes — this is the check that catches UI/backend contract drift.
+      - name: Verify HTTP contract
+        run: npm run verify:e2e
+
+      # Drives Chromium through the actual user flow and asserts the server's
+      # data reaches the screen with no console errors.
+      - name: Verify UI
+        run: npm run verify:ui
+
+      - name: Upload UI screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verify-ui-screenshot
+          path: .next/verify-ui.png
+          if-no-files-found: ignore
+
+  mobile:
+    name: Mobile — typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # The Expo app has its own dependency tree. --legacy-peer-deps matches
+      # the local install; Expo's peer ranges are stricter than its real needs.
+      - name: Install mobile dependencies
+        working-directory: apps/mobile
+        run: npm install --no-audit --no-fund --legacy-peer-deps
+
+      # Typechecks the screens AND the shared api-client against real
+      # Expo/React Native types, so a contract change that breaks mobile fails
+      # here even though no device build runs.
+      - name: Typecheck
+        working-directory: apps/mobile
+        run: npm run typecheck
